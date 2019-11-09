@@ -1,0 +1,49 @@
+{
+  "name": "ember-extract-inline-templates",
+  "version": "1.0.0",
+  "description": "Search and extract ember inline templates from script file(js/ts) using the `import declarations`",
+  "license": "MIT",
+  "keywords": [
+    "ember",
+    "search",
+    "extract",
+    "parse",
+    "traverse",
+    "inline template"
+  ],
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "author": "Saif TURKI <flashios09@gmail.com>",
+  "repository": "https://github.com/flashios09/ember-extract-inline-templates",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest --config jestconfig.json",
+    "format": "prettier --write \"src/**/*.ts\" \"src/**/*.js\"",
+    "lint": "tslint -p tsconfig.json",
+    "prepare": "yarn build",
+    "prepublishOnly": "yarn test && yarn lint",
+    "preversion": "yarn lint",
+    "version": "yarn format && git add -A src",
+    "postversion": "git push && git push --tags"
+  },
+  "devDependencies": {
+    "@types/babel-traverse": "^6.25.5",
+    "@types/babylon": "^6.16.5",
+    "@types/jest": "^24.0.18",
+    "@types/node": "^12.12.6",
+    "jest": "^24.9.0",
+    "prettier": "^1.18.2",
+    "ts-jest": "^24.0.2",
+    "tslint": "^5.20.1",
+    "tslint-config-prettier": "^1.18.0",
+    "typescript": "^3.6.2"
+  },
+  "dependencies": {
+    "babel-traverse": "^6.26.0",
+    "babylon": "^6.18.0"
+  },
+  "engines": {
+    "node": "6.* || 8.* || >= 10.*"
+  }
+}
