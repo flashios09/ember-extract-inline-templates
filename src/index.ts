@@ -1,12 +1,11 @@
 import traverse from 'babel-traverse';
 import { File as ASTFile, ImportDeclaration, ImportDefaultSpecifier, ImportSpecifier, Node } from 'babel-types';
-import { parseScriptFile } from 'ember-meta-explorer';
 
 interface IHbsTagSources { [key: string]: string | string[]; }
 
 interface ISearchAndExtractHbsOptions {
   hbsTagSources?: IHbsTagSources;
-  parse?: (source: string) => ASTFile | never
+  parse: (source: string) => ASTFile | never
 }
 
 interface IGetTemplateNodesOptions extends ISearchAndExtractHbsOptions {
@@ -90,12 +89,12 @@ export const defaultHbsTagSources: IHbsTagSources = {
  * ```
  *
  * @param {string} source The script(js/ts) file content.
- * @param {IOptions} [options={}] The passed options.
+ * @param {IOptions} options The passed options.
  * @returns {(string | never)} The converted to hbs source.
  * @throws {SyntaxError} Will throw an error if invalid source(ts/js) is passed or a **missing plugin**, e.g. `flow`
  * plugin for **typescript syntax**.
  */
-export function searchAndExtractHbs(source: string, options: ISearchAndExtractHbsOptions = {}): string | never {
+export function searchAndExtractHbs(source: string, options: ISearchAndExtractHbsOptions): string | never {
   const templateNodes: ITemplateNode[] = getTemplateNodes(source, options);
   // no inline template(s) found !
   if (templateNodes.length === 0) {
@@ -190,12 +189,12 @@ export function searchAndExtractHbs(source: string, options: ISearchAndExtractHb
  * ```
  *
  * @param {string} source The script(js/ts) file content.
- * @param {IGetTemplateNodesOptions} [options={}] The passed options.
+ * @param {IGetTemplateNodesOptions} options The passed options.
  * @returns {ITemplateNode[]} The extracted template nodes array.
  * @throws {SyntaxError} Will throw an error if invalid source(ts/js) is passed or a **missing plugin**, e.g. `flow`
  * plugin for **typescript syntax**.
  */
-export function getTemplateNodes(source: string, options: IGetTemplateNodesOptions = {}): ITemplateNode[] {
+export function getTemplateNodes(source: string, options: IGetTemplateNodesOptions): ITemplateNode[] {
   const hbsTagSources = (options.hbsTagSources)
     ? { ...defaultHbsTagSources, ...options.hbsTagSources }
     : defaultHbsTagSources;
@@ -225,7 +224,10 @@ export function getTemplateNodes(source: string, options: IGetTemplateNodesOptio
  * plugin for **typescript syntax**.
  */
 function _getAST(source: string, options: IGetTemplateNodesOptions): ASTFile | never {
-  const AST = options.parse ? options.parse(source) : parseScriptFile(source);
+  if (typeof options.parse !== 'function') {
+    throw new Error('ember-extract-inline-template: parse is required function');
+  }
+  const AST = options.parse(source);
   return AST;
 }
 

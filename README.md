@@ -46,15 +46,24 @@ Options:
   }
   ```
 
-- `parse` - [Optional] parser function.
+- `parse` -  parser function.
   ```js
-    // { parse  } usage example
+    // usage example #1
     import { parse } from 'babylon';
     function parseFunction(source) {
       return parse(source, { sourceType: 'module', plugins:  ['classProperties', 'flow'] });
     }
     getTemplateNodes(source, { parse: parseFunction });
 
+  ```
+
+  ```js
+    // usage example #2
+    import { parseScriptFile } from 'ember-meta-explorer';
+    function parseFunction(source) {
+      return parseScriptFile(source);
+    }
+    getTemplateNodes(source, { parse: parseFunction });
   ```
 - `sortByStartKey` - [Optional] The extracted template nodes from the **ast** will not be ordered by their original
  position in the source, so we can sort them using the `start` key, `false` by default.
