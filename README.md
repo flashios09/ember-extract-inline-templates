@@ -42,14 +42,29 @@ Options:
     "htmlbars-inline-precompile": "default",
     "ember-cli-htmlbars-inline-precompile": "default",
     "@glimmerx/component": "hbs",
+    "@glimmer/core": ["createTemplate", "precompileTemplate"]
   }
   ```
 
-- `babylonPlugins` - [Optional] The **additional** babylon plugins to use, e.g. `[ 'typescipt', 'jsx' ]`, see:
- https://github.com/DefinitelyTyped/DefinitelyTyped/blob/master/types/babylon/index.d.ts#L45.
+- `parse` -  parser function.
+  ```js
+    // usage example #1
+    import { parse } from 'babylon';
+    function parseFunction(source) {
+      return parse(source, { sourceType: 'module', plugins:  ['classProperties', 'flow'] });
+    }
+    getTemplateNodes(source, { parse: parseFunction });
 
-  Default used babylon plugins: `[ 'flow', 'classProperties' ]`
+  ```
 
+  ```js
+    // usage example #2
+    import { parseScriptFile } from 'ember-meta-explorer';
+    function parseFunction(source) {
+      return parseScriptFile(source);
+    }
+    getTemplateNodes(source, { parse: parseFunction });
+  ```
 - `sortByStartKey` - [Optional] The extracted template nodes from the **ast** will not be ordered by their original
  position in the source, so we can sort them using the `start` key, `false` by default.
 

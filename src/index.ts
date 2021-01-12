@@ -1,12 +1,11 @@
 import traverse from 'babel-traverse';
 import { File as ASTFile, ImportDeclaration, ImportDefaultSpecifier, ImportSpecifier, Node } from 'babel-types';
-import { parse, PluginName as BabylonPluginName } from 'babylon';
 
-interface IHbsTagSources { [key: string]: string; }
+interface IHbsTagSources { [key: string]: string | string[]; }
 
 interface ISearchAndExtractHbsOptions {
   hbsTagSources?: IHbsTagSources;
-  babylonPlugins?: BabylonPluginName[];
+  parse: (source: string) => ASTFile | never
 }
 
 interface IGetTemplateNodesOptions extends ISearchAndExtractHbsOptions {
@@ -26,9 +25,8 @@ export const defaultHbsTagSources: IHbsTagSources = {
   "htmlbars-inline-precompile": "default",
   "ember-cli-htmlbars-inline-precompile": "default",
   "@glimmerx/component": "hbs",
+  "@glimmer/core": ["createTemplate", "precompileTemplate"]
 };
-
-export const defaultBabylonPlugins: BabylonPluginName[] = [ 'classProperties', 'flow' ];
 
 /**
  * Search and extract ember inline templates using the `import declarations`.
@@ -91,12 +89,12 @@ export const defaultBabylonPlugins: BabylonPluginName[] = [ 'classProperties', '
  * ```
  *
  * @param {string} source The script(js/ts) file content.
- * @param {IOptions} [options={}] The passed options.
+ * @param {IOptions} options The passed options.
  * @returns {(string | never)} The converted to hbs source.
  * @throws {SyntaxError} Will throw an error if invalid source(ts/js) is passed or a **missing plugin**, e.g. `flow`
  * plugin for **typescript syntax**.
  */
-export function searchAndExtractHbs(source: string, options: ISearchAndExtractHbsOptions = {}): string | never {
+export function searchAndExtractHbs(source: string, options: ISearchAndExtractHbsOptions): string | never {
   const templateNodes: ITemplateNode[] = getTemplateNodes(source, options);
   // no inline template(s) found !
   if (templateNodes.length === 0) {
@@ -104,7 +102,6 @@ export function searchAndExtractHbs(source: string, options: ISearchAndExtractHb
   }
 
   const hbsSource: string = _toHbsSource(templateNodes);
-  // console.log({ hbsSource });
 
   return hbsSource;
 }
@@ -125,8 +122,7 @@ export function searchAndExtractHbs(source: string, options: ISearchAndExtractHb
  * }
  * ```
  *
- * - `babylonPlugins` - [Optional] The **additional** babylon plugins to use, e.g. `[ 'typescipt', 'jsx' ]`, see:
- * https://github.com/DefinitelyTyped/DefinitelyTyped/blob/master/types/babylon/index.d.ts#L45.
+ * - `parse` - [Optional] parser function.
  *
  * - `sortByStartKey` - [Optional] The extracted template nodes from the **ast** will not be ordered by their original
  * position in the source, so we can sort them using the `start` key, `false` by default.
@@ -193,23 +189,20 @@ export function searchAndExtractHbs(source: string, options: ISearchAndExtractHb
  * ```
  *
  * @param {string} source The script(js/ts) file content.
- * @param {IGetTemplateNodesOptions} [options={}] The passed options.
+ * @param {IGetTemplateNodesOptions} options The passed options.
  * @returns {ITemplateNode[]} The extracted template nodes array.
  * @throws {SyntaxError} Will throw an error if invalid source(ts/js) is passed or a **missing plugin**, e.g. `flow`
  * plugin for **typescript syntax**.
  */
-export function getTemplateNodes(source: string, options: IGetTemplateNodesOptions = {}): ITemplateNode[] {
+export function getTemplateNodes(source: string, options: IGetTemplateNodesOptions): ITemplateNode[] {
   const hbsTagSources = (options.hbsTagSources)
     ? { ...defaultHbsTagSources, ...options.hbsTagSources }
     : defaultHbsTagSources;
-  const babylonPlugins = (options.babylonPlugins)
-    ? [ ...options.babylonPlugins, ...defaultBabylonPlugins ]
-    : defaultBabylonPlugins;
   const sortByStartKey = options.sortByStartKey || false;
 
   // (!) parse can throw an error(e.g. `SyntaxError: Unexpected token ...`) depending on the passed source
   // IDK how to deal with it !!!
-  const AST: ASTFile = _getAST(source, babylonPlugins);
+  const AST: ASTFile = _getAST(source, options);
   const hbsTags: false | string[] = _getHbsTags(AST, hbsTagSources);
 
   // the script doesn't have import declaration(s) or none of the import declaration is a valid hbs tag !
@@ -226,15 +219,15 @@ export function getTemplateNodes(source: string, options: IGetTemplateNodesOptio
  * A wrapper of `babylon.parse(...)` with predefined config.
  *
  * @param {string} source The script(js/ts) file content.
- * @param {BabylonPluginName[]} babylonPlugins The babylon plugins to use, e.g. `[ 'typescipt', 'jsx' ]`, see:
- * https://github.com/DefinitelyTyped/DefinitelyTyped/blob/master/types/babylon/index.d.ts#L45.
  * @returns {(ASTFile | never)} The parsed **AST**.
  * @throws {SyntaxError} Will throw an error if invalid source(ts/js) is passed or a **missing plugin**, e.g. `flow`
  * plugin for **typescript syntax**.
  */
-function _getAST(source: string, babylonPlugins: BabylonPluginName[] = []): ASTFile | never {
-  const AST = parse(source, { sourceType: 'module', plugins: babylonPlugins });
-
+function _getAST(source: string, options: IGetTemplateNodesOptions): ASTFile | never {
+  if (typeof options.parse !== 'function') {
+    throw new Error('ember-extract-inline-template: parse is required function');
+  }
+  const AST = options.parse(source);
   return AST;
 }
 
@@ -249,6 +242,7 @@ function _getAST(source: string, babylonPlugins: BabylonPluginName[] = []): ASTF
  */
 function _getTemplateNodes(AST: ASTFile, hbsTags: string[], sortByStartKey: boolean = false): ITemplateNode[] {
   let templateNodes: ITemplateNode[] = [];
+
   // (!) MUTATION: `traverse` function will mutate the `templateNodes` array !!!
   traverse(AST, {
     TaggedTemplateExpression({ node }) {
@@ -270,38 +264,40 @@ function _getTemplateNodes(AST: ASTFile, hbsTags: string[], sortByStartKey: bool
 
     CallExpression({ node }) {
       const callee = node.callee;
-      const argument = node.arguments[0];
 
-      if (
-        callee.type === "Identifier" &&
-        hbsTags.includes(callee.name) &&
-        ["StringLiteral", "TemplateLiteral"].includes(argument.type)
-      ) {
-        switch (argument.type) {
-          case "StringLiteral":
-            templateNodes = [...templateNodes, {
-              template: argument.value,
-              startLine: argument.loc.start.line,
-              // (!) the `startColumn` for `StringLiteral` will start counting from the single/double quote(`'|"`) char
-              // not from the first template char, so we have to increment it to have the correct indentation !
-              startColumn: argument.loc.start.column + 1,
-              endLine: argument.loc.end.line,
-              endColumn: argument.loc.end.column,
-              ...argument
-            }];
-            break;
-          case "TemplateLiteral":
-            templateNodes = [...templateNodes, {
-              template: argument.quasis[0].value.raw,
-              startLine: argument.quasis[0].loc.start.line,
-              startColumn: argument.quasis[0].loc.start.column,
-              endLine: argument.quasis[0].loc.end.line,
-              endColumn: argument.quasis[0].loc.end.column,
-              ...argument.quasis[0]
-            }];
-            break;
+      node.arguments.forEach((argument) => {
+        if (
+          callee.type === "Identifier" &&
+          hbsTags.includes(callee.name) &&
+          ["StringLiteral", "TemplateLiteral"].includes(argument.type)
+        ) {
+          switch (argument.type) {
+            case "StringLiteral":
+              templateNodes = [...templateNodes, {
+                template: argument.value,
+                startLine: argument.loc.start.line,
+                // (!) the `startColumn` for `StringLiteral` will start counting from the single/double quote(`'|"`) char
+                // not from the first template char, so we have to increment it to have the correct indentation !
+                startColumn: argument.loc.start.column + 1,
+                endLine: argument.loc.end.line,
+                endColumn: argument.loc.end.column,
+                ...argument
+              }];
+              break;
+            case "TemplateLiteral":
+              templateNodes = [...templateNodes, {
+                template: argument.quasis[0].value.raw,
+                startLine: argument.quasis[0].loc.start.line,
+                startColumn: argument.quasis[0].loc.start.column,
+                endLine: argument.quasis[0].loc.end.line,
+                endColumn: argument.quasis[0].loc.end.column,
+                ...argument.quasis[0]
+              }];
+              break;
+          }
         }
-      }
+      });
+
     },
   });
 
@@ -356,13 +352,18 @@ function _getHbsTags(AST: ASTFile, hbsTagSources: IHbsTagSources): string[] | fa
       }
 
       const importSpecifiers = node.specifiers as ImportSpecifier[];
-      const [ specifier ] = importSpecifiers.filter((specifier: ImportSpecifier) => {
+      const specifiers = importSpecifiers.filter((specifier: ImportSpecifier) => {
+        if (Array.isArray(wantedSourceSpecifier)) {
+          return wantedSourceSpecifier.includes(specifier.imported.name);
+        }
+
         return specifier.imported.name === wantedSourceSpecifier;
       });
-
-      if (specifier) {
-        const localTagName: string = specifier.local.name;
-        acc = [...acc, localTagName];
+      if (specifiers.length) {
+        specifiers.forEach((specifier) => {
+          const localTagName: string = specifier.local.name;
+          acc = [...acc, localTagName];
+        });
 
         return acc;
       }
