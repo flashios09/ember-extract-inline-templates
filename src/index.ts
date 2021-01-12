@@ -6,6 +6,7 @@ interface IHbsTagSources { [key: string]: string | string[]; }
 
 interface ISearchAndExtractHbsOptions {
   hbsTagSources?: IHbsTagSources;
+  parse?: any
 }
 
 interface IGetTemplateNodesOptions extends ISearchAndExtractHbsOptions {
@@ -122,8 +123,7 @@ export function searchAndExtractHbs(source: string, options: ISearchAndExtractHb
  * }
  * ```
  *
- * - `babylonPlugins` - [Optional] The **additional** babylon plugins to use, e.g. `[ 'typescipt', 'jsx' ]`, see:
- * https://github.com/DefinitelyTyped/DefinitelyTyped/blob/master/types/babylon/index.d.ts#L45.
+ * - `parse` - [Optional] parser function.
  *
  * - `sortByStartKey` - [Optional] The extracted template nodes from the **ast** will not be ordered by their original
  * position in the source, so we can sort them using the `start` key, `false` by default.
@@ -203,7 +203,7 @@ export function getTemplateNodes(source: string, options: IGetTemplateNodesOptio
 
   // (!) parse can throw an error(e.g. `SyntaxError: Unexpected token ...`) depending on the passed source
   // IDK how to deal with it !!!
-  const AST: ASTFile = _getAST(source);
+  const AST: ASTFile = _getAST(source, options);
   const hbsTags: false | string[] = _getHbsTags(AST, hbsTagSources);
 
   // the script doesn't have import declaration(s) or none of the import declaration is a valid hbs tag !
@@ -224,8 +224,8 @@ export function getTemplateNodes(source: string, options: IGetTemplateNodesOptio
  * @throws {SyntaxError} Will throw an error if invalid source(ts/js) is passed or a **missing plugin**, e.g. `flow`
  * plugin for **typescript syntax**.
  */
-function _getAST(source: string): ASTFile | never {
-  const AST = parseScriptFile(source);
+function _getAST(source: string, options: IGetTemplateNodesOptions): ASTFile | never {
+  const AST = options.parse ? options.parse(source) : parseScriptFile(source);
   return AST;
 }
 
