@@ -2,7 +2,7 @@ import traverse from 'babel-traverse';
 import { File as ASTFile, ImportDeclaration, ImportDefaultSpecifier, ImportSpecifier, Node } from 'babel-types';
 import { parseScriptFile } from 'ember-meta-explorer';
 
-interface IHbsTagSources { [key: string]: string; }
+interface IHbsTagSources { [key: string]: string | string[]; }
 
 interface ISearchAndExtractHbsOptions {
   hbsTagSources?: IHbsTagSources;
@@ -25,6 +25,7 @@ export const defaultHbsTagSources: IHbsTagSources = {
   "htmlbars-inline-precompile": "default",
   "ember-cli-htmlbars-inline-precompile": "default",
   "@glimmerx/component": "hbs",
+  "@glimmer/core": ["createTemplate", "precompileTemplate"]
 };
 
 /**
@@ -101,7 +102,6 @@ export function searchAndExtractHbs(source: string, options: ISearchAndExtractHb
   }
 
   const hbsSource: string = _toHbsSource(templateNodes);
-  // console.log({ hbsSource });
 
   return hbsSource;
 }
@@ -240,6 +240,7 @@ function _getAST(source: string): ASTFile | never {
  */
 function _getTemplateNodes(AST: ASTFile, hbsTags: string[], sortByStartKey: boolean = false): ITemplateNode[] {
   let templateNodes: ITemplateNode[] = [];
+
   // (!) MUTATION: `traverse` function will mutate the `templateNodes` array !!!
   traverse(AST, {
     TaggedTemplateExpression({ node }) {
@@ -261,38 +262,40 @@ function _getTemplateNodes(AST: ASTFile, hbsTags: string[], sortByStartKey: bool
 
     CallExpression({ node }) {
       const callee = node.callee;
-      const argument = node.arguments[0];
 
-      if (
-        callee.type === "Identifier" &&
-        hbsTags.includes(callee.name) &&
-        ["StringLiteral", "TemplateLiteral"].includes(argument.type)
-      ) {
-        switch (argument.type) {
-          case "StringLiteral":
-            templateNodes = [...templateNodes, {
-              template: argument.value,
-              startLine: argument.loc.start.line,
-              // (!) the `startColumn` for `StringLiteral` will start counting from the single/double quote(`'|"`) char
-              // not from the first template char, so we have to increment it to have the correct indentation !
-              startColumn: argument.loc.start.column + 1,
-              endLine: argument.loc.end.line,
-              endColumn: argument.loc.end.column,
-              ...argument
-            }];
-            break;
-          case "TemplateLiteral":
-            templateNodes = [...templateNodes, {
-              template: argument.quasis[0].value.raw,
-              startLine: argument.quasis[0].loc.start.line,
-              startColumn: argument.quasis[0].loc.start.column,
-              endLine: argument.quasis[0].loc.end.line,
-              endColumn: argument.quasis[0].loc.end.column,
-              ...argument.quasis[0]
-            }];
-            break;
+      node.arguments.forEach((argument) => {
+        if (
+          callee.type === "Identifier" &&
+          hbsTags.includes(callee.name) &&
+          ["StringLiteral", "TemplateLiteral"].includes(argument.type)
+        ) {
+          switch (argument.type) {
+            case "StringLiteral":
+              templateNodes = [...templateNodes, {
+                template: argument.value,
+                startLine: argument.loc.start.line,
+                // (!) the `startColumn` for `StringLiteral` will start counting from the single/double quote(`'|"`) char
+                // not from the first template char, so we have to increment it to have the correct indentation !
+                startColumn: argument.loc.start.column + 1,
+                endLine: argument.loc.end.line,
+                endColumn: argument.loc.end.column,
+                ...argument
+              }];
+              break;
+            case "TemplateLiteral":
+              templateNodes = [...templateNodes, {
+                template: argument.quasis[0].value.raw,
+                startLine: argument.quasis[0].loc.start.line,
+                startColumn: argument.quasis[0].loc.start.column,
+                endLine: argument.quasis[0].loc.end.line,
+                endColumn: argument.quasis[0].loc.end.column,
+                ...argument.quasis[0]
+              }];
+              break;
+          }
         }
-      }
+      });
+
     },
   });
 
@@ -347,13 +350,18 @@ function _getHbsTags(AST: ASTFile, hbsTagSources: IHbsTagSources): string[] | fa
       }
 
       const importSpecifiers = node.specifiers as ImportSpecifier[];
-      const [ specifier ] = importSpecifiers.filter((specifier: ImportSpecifier) => {
+      const specifiers = importSpecifiers.filter((specifier: ImportSpecifier) => {
+        if (Array.isArray(wantedSourceSpecifier)) {
+          return wantedSourceSpecifier.includes(specifier.imported.name);
+        }
+
         return specifier.imported.name === wantedSourceSpecifier;
       });
-
-      if (specifier) {
-        const localTagName: string = specifier.local.name;
-        acc = [...acc, localTagName];
+      if (specifiers.length) {
+        specifiers.forEach((specifier) => {
+          const localTagName: string = specifier.local.name;
+          acc = [...acc, localTagName];
+        });
 
         return acc;
       }

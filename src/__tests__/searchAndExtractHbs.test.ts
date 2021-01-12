@@ -33,3 +33,10 @@ test("with both tagged *hbs`template`* and string literal *hbs('template')* form
 
   expect(searchAndExtractHbs(component)).toBe(template);
 });
+
+test("with low-level glimmer api", () => {
+  const component = readFile('./with-glimmer-api/component.ts');
+  const template = readFile('./with-glimmer-api/template.hbs');
+
+  expect(searchAndExtractHbs(component)).toBe(template);
+});
