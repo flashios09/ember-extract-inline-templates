@@ -1,12 +1,11 @@
 import traverse from 'babel-traverse';
 import { File as ASTFile, ImportDeclaration, ImportDefaultSpecifier, ImportSpecifier, Node } from 'babel-types';
-import { parse, PluginName as BabylonPluginName } from 'babylon';
+import { parseScriptFile } from 'ember-meta-explorer';
 
 interface IHbsTagSources { [key: string]: string; }
 
 interface ISearchAndExtractHbsOptions {
   hbsTagSources?: IHbsTagSources;
-  babylonPlugins?: BabylonPluginName[];
 }
 
 interface IGetTemplateNodesOptions extends ISearchAndExtractHbsOptions {
@@ -27,8 +26,6 @@ export const defaultHbsTagSources: IHbsTagSources = {
   "ember-cli-htmlbars-inline-precompile": "default",
   "@glimmerx/component": "hbs",
 };
-
-export const defaultBabylonPlugins: BabylonPluginName[] = [ 'classProperties', 'flow' ];
 
 /**
  * Search and extract ember inline templates using the `import declarations`.
@@ -202,14 +199,11 @@ export function getTemplateNodes(source: string, options: IGetTemplateNodesOptio
   const hbsTagSources = (options.hbsTagSources)
     ? { ...defaultHbsTagSources, ...options.hbsTagSources }
     : defaultHbsTagSources;
-  const babylonPlugins = (options.babylonPlugins)
-    ? [ ...options.babylonPlugins, ...defaultBabylonPlugins ]
-    : defaultBabylonPlugins;
   const sortByStartKey = options.sortByStartKey || false;
 
   // (!) parse can throw an error(e.g. `SyntaxError: Unexpected token ...`) depending on the passed source
   // IDK how to deal with it !!!
-  const AST: ASTFile = _getAST(source, babylonPlugins);
+  const AST: ASTFile = _getAST(source);
   const hbsTags: false | string[] = _getHbsTags(AST, hbsTagSources);
 
   // the script doesn't have import declaration(s) or none of the import declaration is a valid hbs tag !
@@ -226,15 +220,12 @@ export function getTemplateNodes(source: string, options: IGetTemplateNodesOptio
  * A wrapper of `babylon.parse(...)` with predefined config.
  *
  * @param {string} source The script(js/ts) file content.
- * @param {BabylonPluginName[]} babylonPlugins The babylon plugins to use, e.g. `[ 'typescipt', 'jsx' ]`, see:
- * https://github.com/DefinitelyTyped/DefinitelyTyped/blob/master/types/babylon/index.d.ts#L45.
  * @returns {(ASTFile | never)} The parsed **AST**.
  * @throws {SyntaxError} Will throw an error if invalid source(ts/js) is passed or a **missing plugin**, e.g. `flow`
  * plugin for **typescript syntax**.
  */
-function _getAST(source: string, babylonPlugins: BabylonPluginName[] = []): ASTFile | never {
-  const AST = parse(source, { sourceType: 'module', plugins: babylonPlugins });
-
+function _getAST(source: string): ASTFile | never {
+  const AST = parseScriptFile(source);
   return AST;
 }
 

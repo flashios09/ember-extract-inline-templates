@@ -2,7 +2,11 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { searchAndExtractHbs } from "../index";
 
-const readFile = (path: any) => readFileSync(resolve(__dirname, path), { encoding: 'utf-8'});
+const readFile = (path: any) => clean(readFileSync(resolve(__dirname, path), { encoding: 'utf-8'}));
+
+function clean(source: string): string {
+  return source.replace(/(?:\\[rn]|[\r\n])/g,"\n");
+}
 
 test('with single multiline tagged template', () => {
   const component = readFile('./with-single-multiline-tagged-template/component.ts');
