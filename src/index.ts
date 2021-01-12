@@ -6,7 +6,7 @@ interface IHbsTagSources { [key: string]: string | string[]; }
 
 interface ISearchAndExtractHbsOptions {
   hbsTagSources?: IHbsTagSources;
-  parse?: any
+  parse?: (source: string) => ASTFile | never
 }
 
 interface IGetTemplateNodesOptions extends ISearchAndExtractHbsOptions {
